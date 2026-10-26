@@ -1231,6 +1231,11 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         grid.getRecycledViewPool().clear();
         heroArtCache.clear();
         heroArtKey = null;
+        if (shelfImages != null) {
+            hideShelf();
+            shelfRow.removeAllViews();   // the cards hold their bitmaps
+            shelfImages.trim();
+        }
         wallpaperPlayer.releaseForMemoryPressure();
         tileRefresh.invalidate();
     }
@@ -2073,6 +2078,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     /** The dock tile at position has focus: show its app's programs, from the cache at once, then fresh ones. */
     private void updateShelf(int position) {
         if (!topShelf) return;
+        if (reordering || dockEditing) {   // moving tiles: no programs to open by mistake
+            hideShelf();
+            return;
+        }
         String pkg = adapter.packageAt(position);
         if (pkg == null) {
             shelfPackage = null;
@@ -2087,13 +2096,18 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     }
 
     private void loadShelf(String pkg) {
+        if (isDestroyed() || shelfLoader.isShutdown()) return;
         shelfFresh.add(pkg);   // one load at a time per package; cleared again on resume
         shelfLoader.execute(() -> {
             List<ShelfContent.Item> items = ShelfContent.load(getContentResolver(), pkg, SHELF_MAX);
             handler.post(() -> {
+                // A provider query outlives shutdownNow: after a recreate this lands on the old activity.
+                if (isDestroyed()) return;
                 shelfCache.put(pkg, items);
-                // Only for the app still focused, and never under the remote while it is in the row.
-                if (pkg.equals(shelfPackage) && !shelf.hasFocus()) setShelf(items);
+                if (!pkg.equals(shelfPackage)) return;
+                // Never under the remote while it is in the row: read again on the next focus instead.
+                if (shelf.hasFocus()) shelfFresh.remove(pkg);
+                else setShelf(items);
             });
         });
     }
@@ -2217,6 +2231,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         card.setOnKeyListener((v, keyCode, event) -> {
             if (event.getAction() != KeyEvent.ACTION_DOWN) return false;
             switch (keyCode) {
+                case KeyEvent.KEYCODE_BACK:
                 case KeyEvent.KEYCODE_DPAD_DOWN:
                     focusTile(lastFocused);
                     return true;
@@ -2246,7 +2261,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private static final int SHELF_PERMISSION_REQUEST = 43;
 
     /** The listings prompt was shown in this process: a dismissed prompt waits for the next start, never loops. */
-    private boolean shelfAskedThisRun;
+    private static boolean shelfAskedThisRun;
 
     /**
      * Asks for READ_TV_LISTINGS, which other apps' programs need. An answer (Allow or Deny) is final and remembered;
@@ -2269,7 +2284,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         shelfFresh.clear();
         shelfCache.clear();
         shelfPackage = null;
-        if (dockRow && lastFocused < COLUMNS) updateShelf(lastFocused);
+        if (dockRow && lastFocused < COLUMNS && grid.hasFocus() && heroShown) updateShelf(lastFocused);
     }
 
     /** Opens a program the way the stock launcher does: the intent its app stored with it. */
@@ -2277,6 +2292,12 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         try {
             Intent i = Intent.parseUri(item.intentUri, Intent.URI_INTENT_SCHEME);
             i.setSelector(null);
+            String own = getPackageName();
+            if (own.equals(i.getPackage()) || (i.getComponent() != null && own.equals(i.getComponent().getPackageName()))) {
+                throw new SecurityException("a shelf card may not open the launcher itself");
+            }
+            i.setFlags(i.getFlags() & ~(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                    | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION | Intent.FLAG_GRANT_PREFIX_URI_PERMISSION));
             i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             startActivity(i);
         } catch (Exception e) {
@@ -2332,13 +2353,22 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         weatherBg = bg;
         long age = weatherReadAt == 0 ? Long.MAX_VALUE : SystemClock.elapsedRealtime() - weatherReadAt;
         Runnable read = new Runnable() {
+            /** Failed reads in a row: after a boot the network comes up a little after Home, so retry soon. */
+            private int failures;
+
             @Override
             public void run() {
                 if (weatherBg != bg) return;
                 WeatherLine.Forecast f = WeatherLine.fetch(weatherLat, weatherLon);
+                failures = f == null ? failures + 1 : 0;
                 handler.post(() -> {
                     if (weatherBg != bg || weatherLine == null) return;
-                    String line = f == null ? "" : WeatherLine.sentence(f, weatherWords());
+                    String line;
+                    try {
+                        line = f == null ? "" : WeatherLine.sentence(f, weatherWords());
+                    } catch (RuntimeException e) {   // a placeholder a translation got wrong: no line, no crash
+                        line = "";
+                    }
                     if (!line.isEmpty()) {
                         weatherLine.setText(line);
                         weatherLine.setVisibility(View.VISIBLE);
@@ -2348,7 +2378,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                         weatherLine.setVisibility(View.GONE);   // offline for a while: no line beats an old one
                     }
                 });
-                if (weatherBg == bg) bg.postDelayed(this, f == null ? 5 * 60_000L : WEATHER_MS);
+                // 30 s, 1, 2 and 4 minutes, then every 5 minutes while it keeps failing.
+                long retry = Math.min(5 * 60_000L, 30_000L << Math.min(failures - 1, 4));
+                if (weatherBg == bg) bg.postDelayed(this, f == null ? retry : WEATHER_MS);
             }
         };
         // Back on Home within the half hour: keep the line and read again when it is due.
@@ -2595,7 +2627,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         }
         if (keyCode == KeyEvent.KEYCODE_DPAD_UP) {
             if (position < COLUMNS) {
-                if (!shelfOn) return false;                // dock row: let focus move to the top bar
+                if (!shelfOn || reordering || dockEditing) return false;   // dock row: on to the top bar
                 focusShelf();
                 grid.playSoundEffect(SoundEffectConstants.NAVIGATION_UP);
                 return true;

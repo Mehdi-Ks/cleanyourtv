@@ -31,6 +31,7 @@ final class ShelfImages {
 
     private final ContentResolver resolver;
     private final int targetWidth;
+    private static final long MAX_PIXELS = 1_000_000L;
     private final Handler main = new Handler(Looper.getMainLooper());
     private final ExecutorService pool = Executors.newFixedThreadPool(2);
     private final LruCache<String, Bitmap> cache = new LruCache<String, Bitmap>(6 * 1024 * 1024) {
@@ -49,7 +50,7 @@ final class ShelfImages {
     void load(String uri, ImageView view) {
         view.setTag(uri);
         view.setImageBitmap(null);
-        if (uri == null) return;
+        if (uri == null || pool.isShutdown()) return;
         Bitmap hit = cache.get(uri);
         if (hit != null) {
             view.setImageBitmap(hit);
@@ -63,6 +64,11 @@ final class ShelfImages {
                 if (uri.equals(view.getTag())) view.setImageBitmap(bmp);
             });
         });
+    }
+
+    /** Drops the cached pictures (memory pressure); cards ask again when they are shown next. */
+    void trim() {
+        cache.evictAll();
     }
 
     void shutdown() {
@@ -79,6 +85,9 @@ final class ShelfImages {
             BitmapFactory.decodeByteArray(data, 0, data.length, o);
             if (o.outWidth <= 0) return null;
             o.inSampleSize = sampleSize(o.outWidth, targetWidth);
+            // The width alone does not bound a very tall picture: keep every decode under about 1 MP (2 MB in
+            // RGB_565), on a TV with under 1 GB.
+            while ((long) (o.outWidth / o.inSampleSize) * (o.outHeight / o.inSampleSize) > MAX_PIXELS) o.inSampleSize *= 2;
             o.inJustDecodeBounds = false;
             o.inPreferredConfig = Bitmap.Config.RGB_565;   // half the memory; cards are opaque
             return BitmapFactory.decodeByteArray(data, 0, data.length, o);
@@ -97,7 +106,9 @@ final class ShelfImages {
 
     private byte[] bytes(String uri) throws IOException {
         String scheme = Uri.parse(uri).getScheme();
-        if ("http".equals(scheme) || "https".equals(scheme)) {
+        // https only: plain http would let anyone on the network swap the picture the decoder reads, and the
+        // apps whose posters this shows publish https (a Google TV 14 probe found no http among 166 posters).
+        if ("https".equals(scheme)) {
             HttpURLConnection con = (HttpURLConnection) new URL(uri).openConnection();
             con.setConnectTimeout(TIMEOUT_MS);
             con.setReadTimeout(TIMEOUT_MS);
@@ -111,7 +122,8 @@ final class ShelfImages {
                 con.disconnect();
             }
         }
-        if ("content".equals(scheme) || "android.resource".equals(scheme) || "file".equals(scheme)) {
+        // No file://: that would read files with the launcher's own access, on another app's say-so.
+        if ("content".equals(scheme) || "android.resource".equals(scheme)) {
             try (InputStream in = resolver.openInputStream(Uri.parse(uri))) {
                 return in == null ? null : readCapped(in);
             }
