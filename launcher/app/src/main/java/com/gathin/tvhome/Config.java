@@ -141,6 +141,8 @@ final class Config {
     final boolean showStats;
     /** Watch Next and channel programs of the focused dock app above the dock (config.xml top_shelf). */
     final boolean topShelf;
+    /** Dock apps whose programs the top shelf never shows (shelf_hidden_apps), e.g. rows that are only promotions. */
+    final List<String> shelfHiddenApps;
     /** The weather line under the clock (config.xml weather_line), for weatherLatitude and weatherLongitude. */
     final boolean weatherLine;
     final String weatherLatitude;
@@ -269,7 +271,7 @@ final class Config {
                    String sourcePanelExtra, boolean coocaaSources, String inputAction, List<String> inputSources,
                    String inputUriScheme, int columns, int rowsBelowDock, boolean animations, boolean advancedEffects,
                    boolean shamsiDate, String greetingName, boolean moduleCards, boolean reducedMotion, boolean bootToLiveTv, boolean openOnStartChoice, boolean dockTitle, boolean dockRow, boolean topMenu, boolean launcherSettingsButton, boolean reorderButton, boolean showNetworkPill, boolean showInputsPill, boolean iconOnlyButtons, boolean iconOnlyInputs, boolean libraryButton, boolean showLibraryPill, int wifiLabelWidth, boolean alwaysShowNames, boolean wallpaperTrueColor, boolean focusOvershoot, String vpnApp,
-                   boolean showHomeSettingsShortcut, boolean showStats, boolean topShelf, boolean weatherLine, String weatherLatitude, String weatherLongitude, boolean appLibrary, boolean appLibrarySelection, boolean libraryOkOpens, boolean uniformTiles, int backgroundColor, int skyIntensity,
+                   boolean showHomeSettingsShortcut, boolean showStats, boolean topShelf, List<String> shelfHiddenApps, boolean weatherLine, String weatherLatitude, String weatherLongitude, boolean appLibrary, boolean appLibrarySelection, boolean libraryOkOpens, boolean uniformTiles, int backgroundColor, int skyIntensity,
                    int[] settingsKeycodes, boolean settingsKeyPanel, boolean restoreKeyServices, boolean wallpaperEnabled, File wallpaper, List<File> wallpapers,
                    int wallpaperRotationMinutes, int wallpaperDim, int dockOpacity, String wallpaperOrder, boolean overlayApplied,
                    Festival festival, int[] inputKeycodes, List<String> appKeys, String stockHomeRedirect,
@@ -334,6 +336,7 @@ final class Config {
         this.showHomeSettingsShortcut = showHomeSettingsShortcut;
         this.showStats = showStats;
         this.topShelf = topShelf;
+        this.shelfHiddenApps = Collections.unmodifiableList(shelfHiddenApps);
         this.weatherLine = weatherLine;
         this.weatherLatitude = weatherLatitude;
         this.weatherLongitude = weatherLongitude;
@@ -459,6 +462,7 @@ final class Config {
         boolean homeSettings = res.getBoolean(R.bool.show_home_settings_shortcut);
         boolean showStats = res.getBoolean(R.bool.show_stats);
         boolean topShelf = res.getBoolean(R.bool.top_shelf);
+        List<String> shelfHidden = new ArrayList<>();
         boolean weatherLine = res.getBoolean(R.bool.weather_line);
         String weatherLat = res.getString(R.string.weather_latitude).trim();
         String weatherLon = res.getString(R.string.weather_longitude).trim();
@@ -567,6 +571,7 @@ final class Config {
             homeSettings = bool(json, "show_home_settings_shortcut", homeSettings);
             showStats = bool(json, "show_stats", showStats);
             topShelf = bool(json, "top_shelf", topShelf);
+            shelfHidden = stringList(json, "shelf_hidden_apps", shelfHidden);
             weatherLine = bool(json, "weather_line", weatherLine);
             weatherLat = string(json, "weather_latitude", weatherLat);
             weatherLon = string(json, "weather_longitude", weatherLon);
@@ -670,7 +675,7 @@ final class Config {
                 Math.max(0, rowsBelow), animations, advancedEffects, shamsi, greetingName, moduleCards, reducedMotion, bootToLiveTv,
                 openOnStartChoice, dockTitle, dockRow, topMenu, launcherSettingsButton, reorderButton, showNetworkPill, showInputsPill,
                 iconOnlyButtons, iconOnlyInputs, libraryButton, showLibraryPill, wifiLabelWidth, alwaysShowNames, wallpaperTrueColor, focusOvershoot,
-                vpn, homeSettings, showStats, topShelf, weatherLine, weatherLat, weatherLon, library, librarySelection, libraryOkOpens, uniformTiles, background,
+                vpn, homeSettings, showStats, topShelf, shelfHidden, weatherLine, weatherLat, weatherLon, library, librarySelection, libraryOkOpens, uniformTiles, background,
                 Math.max(0, Math.min(100, skyIntensity)), settingsKeycodes, settingsKeyPanel, restoreKeyServices, wallpaperEnabled, wallpaper,
                 wallpapers, rotationMinutes, wallpaperDim, dockOpacity, wallpaperOrder, applied, festival, inputKeycodes, appKeys, stockHomeRedirect,
                 json == null ? Collections.emptyList() : raceCalendar(json), cinematic, ambientGlow, appGlow, fadeRows,

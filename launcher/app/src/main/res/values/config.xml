@@ -406,6 +406,8 @@
          network use: those pictures, while the row is on screen. false (the default) reads and fetches nothing.
          A theme can set "top_shelf": true. -->
     <bool name="top_shelf">false</bool>
+    <!-- Packages whose programs the top shelf leaves out, as a theme's "shelf_hidden_apps": ["com.example.app"]
+         (no config.xml array: set it in a theme). Their tiles stay; only the row above the dock is skipped. -->
 
     <!-- Weather line under the clock: the temperature and conditions now, what the next hours bring and the night's
          low (or the day's high), from Open-Meteo for weather_latitude and weather_longitude (decimal degrees; the line

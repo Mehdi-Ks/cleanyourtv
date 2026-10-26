@@ -180,6 +180,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private boolean heroShown;
     /** config.xml top_shelf (dock_row only): the focused dock app's programs above the dock. */
     private boolean topShelf;
+    private List<String> shelfHiddenApps = Collections.emptyList();
     private HorizontalScrollView shelf;
     private LinearLayout shelfRow;
     private ShelfImages shelfImages;
@@ -468,6 +469,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         shelfRow = findViewById(R.id.shelfRow);
         // Not in a single row: there Up from the dock already belongs to the top bar and every tile is "dock".
         topShelf = cfg.topShelf && cfg.dockRow && !cfg.singleRow;
+        shelfHiddenApps = cfg.shelfHiddenApps;
         if (topShelf) {
             shelfImages = new ShelfImages(getContentResolver(), (int) (SHELF_CARD_W_DP * density));
             shelfLoader = Executors.newSingleThreadExecutor();
@@ -2091,7 +2093,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             return;
         }
         String pkg = adapter.packageAt(position);
-        if (pkg == null) {
+        if (pkg == null || shelfHiddenApps.contains(pkg)) {
             shelfPackage = null;
             setShelf(null);
             return;
