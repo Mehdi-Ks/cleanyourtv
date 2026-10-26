@@ -821,8 +821,16 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             int firstButton = btnInputs.getVisibility() == View.VISIBLE ? R.id.btnInputs : firstTopButton().getId();
             int leftButton = rtlMenuBar ? R.id.btnSettings : firstButton;
             int rightButton = rtlMenuBar ? firstButton : R.id.btnSettings;
-            if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) return v.getId() == leftButton;
-            return keyCode == KeyEvent.KEYCODE_DPAD_RIGHT && v.getId() == rightButton;
+            if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT && v.getId() == leftButton) return true;
+            if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT && v.getId() == rightButton) return true;
+            // With the top shelf up, the focus finder can rank a program card below the bar as the nearest view to
+            // the side, so Right from Inputs landed on the last card instead of Wi-Fi: step along the bar instead.
+            if (shelfOn && (keyCode == KeyEvent.KEYCODE_DPAD_LEFT || keyCode == KeyEvent.KEYCODE_DPAD_RIGHT)) {
+                View next = barNeighbour(v, keyCode == KeyEvent.KEYCODE_DPAD_RIGHT);
+                if (next != null) next.requestFocus();
+                return true;
+            }
+            return false;
         };
         btnInputs.setOnKeyListener(pillKeys);
         btnWifi.setOnKeyListener(pillKeys);
@@ -2248,6 +2256,21 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             }
         });
         return column;
+    }
+
+    /** The nearest visible, focusable button beside v in the top bar, by position on screen; null at its end. */
+    private View barNeighbour(View v, boolean right) {
+        if (!(v.getParent() instanceof ViewGroup)) return null;
+        ViewGroup bar = (ViewGroup) v.getParent();
+        View best = null;
+        for (int i = 0; i < bar.getChildCount(); i++) {
+            View c = bar.getChildAt(i);
+            if (c == v || c.getVisibility() != View.VISIBLE || !c.isFocusable()) continue;
+            boolean beside = right ? c.getLeft() > v.getLeft() : c.getLeft() < v.getLeft();
+            if (!beside) continue;
+            if (best == null || Math.abs(c.getLeft() - v.getLeft()) < Math.abs(best.getLeft() - v.getLeft())) best = c;
+        }
+        return best;
     }
 
     private void focusShelf() {
