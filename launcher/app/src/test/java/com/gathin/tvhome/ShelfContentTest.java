@@ -17,8 +17,8 @@ public class ShelfContentTest {
     }
 
     @Test
-    public void firstChannelStandsInWhenNoneIsBrowsable() {
-        assertEquals(Collections.singletonList(7L), ShelfContent.pickChannels(Arrays.asList(
+    public void everyChannelStandsInWhenNoneIsBrowsable() {
+        assertEquals(Arrays.asList(7L, 9L), ShelfContent.pickChannels(Arrays.asList(
                 new long[]{7, 0}, new long[]{9, 0})));
         assertEquals(Collections.emptyList(), ShelfContent.pickChannels(Collections.emptyList()));
     }

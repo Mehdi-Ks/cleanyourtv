@@ -127,12 +127,14 @@ final class ShelfContent {
 
     /**
      * Channels as {id, browsable} in id order. The browsable ones are those the user (or the app's default channel)
-     * put on the home screen; when an app has none marked, its first channel stands in, so the shelf is not empty.
+     * put on the home screen. When an app has none marked (every channel once the stock launcher is disabled, as
+     * nothing is left to mark them), all its channels stand in, in id order: the first alone can be empty, as ARTE's
+     * live channel is, and load() stops reading channels once the shelf is full.
      */
     static List<Long> pickChannels(List<long[]> channels) {
         List<Long> out = new ArrayList<>();
         for (long[] ch : channels) if (ch[1] != 0) out.add(ch[0]);
-        if (out.isEmpty() && !channels.isEmpty()) out.add(channels.get(0)[0]);
+        if (out.isEmpty()) for (long[] ch : channels) out.add(ch[0]);
         return Collections.unmodifiableList(out);
     }
 
