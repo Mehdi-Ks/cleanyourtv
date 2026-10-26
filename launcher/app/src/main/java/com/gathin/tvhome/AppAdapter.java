@@ -626,12 +626,14 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         return DockSlots.focusable(position, docked, emptySlots);
     }
 
-    String labelAt(int position) {
-        return position >= 0 && position < items.size() ? items.get(position).label : "";
+    /** Package of the app at a position, or null (an empty slot or no tile). */
+    String packageAt(int position) {
+        return position >= 0 && position < items.size() && items.get(position).kind != Entry.EMPTY
+                ? items.get(position).pkg : null;
     }
 
-    String packageAt(int position) {
-        return position >= 0 && position < items.size() ? items.get(position).pkg : null;
+    String labelAt(int position) {
+        return position >= 0 && position < items.size() ? items.get(position).label : "";
     }
 
     /** The tile's artwork, its banner or else its icon, for the cinematic shelf's backdrop (HeroArt). */
