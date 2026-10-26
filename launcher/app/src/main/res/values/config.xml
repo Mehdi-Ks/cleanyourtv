@@ -407,6 +407,14 @@
          A theme can set "top_shelf": true. -->
     <bool name="top_shelf">false</bool>
 
+    <!-- Weather line under the clock: the temperature and conditions now, what the next hours bring and the night's
+         low (or the day's high), from Open-Meteo for weather_latitude and weather_longitude (decimal degrees; the line
+         stays off without both). Read every 30 minutes, only while Home is on screen; offline, the line hides.
+         A theme can set "weather_line": true with "weather_latitude" and "weather_longitude". -->
+    <bool name="weather_line">false</bool>
+    <string name="weather_latitude" translatable="false"></string>
+    <string name="weather_longitude" translatable="false"></string>
+
     <!-- Time-of-day backdrop behind everything: a dark gradient that follows the clock, with a warm
          horizon glow around sunrise and sunset. 0 keeps the plain background (the default); 1 to 100
          sets its opacity. Around 60 reads clearly without hiding a wallpaper. Can also be set with

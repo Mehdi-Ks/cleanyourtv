@@ -114,6 +114,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private boolean rtlAppGrid;
     private static final long MINUTE_MS = 60_000L;
     private static final long STATS_MS = 10_000L;
+    /** Weather line: a fresh read this often while Home is on screen, and how long a reading may stay up offline. */
+    private static final long WEATHER_MS = 30 * 60_000L;
+    private static final long WEATHER_STALE_MS = 2 * 60 * 60_000L;
     /**
      * 2025-01-01. TVs without a clock battery boot at the epoch (08:00 in China) and keep it until network
      * time arrives; the clock, date and greeting stay hidden before then.
@@ -513,6 +516,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         btnWifi = findViewById(R.id.btnWifi);
         shamsiDate = findViewById(R.id.shamsiDate);
         stats = findViewById(R.id.stats);
+        weatherLine = findViewById(R.id.weatherLine);
+        weatherLat = WeatherLine.coordinate(cfg.weatherLatitude, 90);
+        weatherLon = WeatherLine.coordinate(cfg.weatherLongitude, 180);
+        showWeather = cfg.weatherLine && weatherLat != null && weatherLon != null;
         raceCalendar = cfg.raceCalendar;
         racePanel = findViewById(R.id.racePanel);
         raceKicker = findViewById(R.id.raceKicker);
@@ -1009,6 +1016,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             pillsShown = true;
         }
         if (showStats) startStats();
+        if (showWeather) startWeather();
         sky.update();
         wallpaperPlayer.start();
         handler.postDelayed(minuteTick, MINUTE_MS);
@@ -1186,6 +1194,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         heroArt.animate().cancel();
         handler.removeCallbacks(minuteTick);
         stopStats();
+        stopWeather();
         if (diya != null) diya.stop();
         cancelPendingFocusScroll();
         // Nothing of ours stays on screen over another app; an undecided prompt simply returns next time.
@@ -2300,6 +2309,67 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         glass.animate().cancel();
         if (animations && !reducedMotion) glass.animate().alpha(0f).setDuration(160).start();
         else glass.setAlpha(0f);
+    }
+
+    // ---- weather line (config.xml weather_line) -----------------------------------------------------
+
+    private TextView weatherLine;
+    /** weather_line is on and both coordinates are usable. Off: the line is gone and nothing is fetched. */
+    private boolean showWeather;
+    private String weatherLat, weatherLon;
+    private HandlerThread weatherThread;
+    /** The current run's handler, as statsBg is for the stats line (volatile: read off-thread). */
+    private volatile Handler weatherBg;
+    /** When the line on screen was read (elapsedRealtime), 0 for never. Main thread only. */
+    private long weatherReadAt;
+
+    /** Reads now if the last reading is due, then every WEATHER_MS, until stopWeather. */
+    private void startWeather() {
+        if (weatherThread != null) return;
+        weatherThread = new HandlerThread("weather");
+        weatherThread.start();
+        Handler bg = new Handler(weatherThread.getLooper());
+        weatherBg = bg;
+        long age = weatherReadAt == 0 ? Long.MAX_VALUE : SystemClock.elapsedRealtime() - weatherReadAt;
+        Runnable read = new Runnable() {
+            @Override
+            public void run() {
+                if (weatherBg != bg) return;
+                WeatherLine.Forecast f = WeatherLine.fetch(weatherLat, weatherLon);
+                handler.post(() -> {
+                    if (weatherBg != bg || weatherLine == null) return;
+                    String line = f == null ? "" : WeatherLine.sentence(f, weatherWords());
+                    if (!line.isEmpty()) {
+                        weatherLine.setText(line);
+                        weatherLine.setVisibility(View.VISIBLE);
+                        weatherReadAt = SystemClock.elapsedRealtime();
+                    } else if (weatherReadAt == 0
+                            || SystemClock.elapsedRealtime() - weatherReadAt > WEATHER_STALE_MS) {
+                        weatherLine.setVisibility(View.GONE);   // offline for a while: no line beats an old one
+                    }
+                });
+                if (weatherBg == bg) bg.postDelayed(this, f == null ? 5 * 60_000L : WEATHER_MS);
+            }
+        };
+        // Back on Home within the half hour: keep the line and read again when it is due.
+        if (age < WEATHER_MS) bg.postDelayed(read, WEATHER_MS - age);
+        else bg.post(read);
+    }
+
+    private void stopWeather() {
+        if (weatherThread == null) return;
+        weatherBg.removeCallbacksAndMessages(null);
+        weatherThread.quit();
+        weatherThread = null;
+        weatherBg = null;
+    }
+
+    private WeatherLine.Words weatherWords() {
+        return new WeatherLine.Words(getResources().getStringArray(R.array.weather_conditions),
+                getString(R.string.weather_rain_at), getString(R.string.weather_snow_at),
+                getString(R.string.weather_storm_at), getString(R.string.weather_rising_to),
+                getString(R.string.weather_falling_to), getString(R.string.weather_steady),
+                getString(R.string.weather_low_tonight), getString(R.string.weather_high_today));
     }
 
     // ---- optional system stats (config.xml show_stats) --------------------------------------------
