@@ -2,6 +2,7 @@
 
 A fork of [cleanyourtv](https://github.com/Gathin23/cleanyourtv)'s launcher, branch `my-tv`, built and tested on a
 **Telefunken SWTV-24AE-FHD** (Skyworth OEM, `beomil`, MediaTek mt5867, Google TV 14, about 930 MB RAM).
+In daily use on that TV since 26 October 2026 with no crash or freeze.
 
 ![Home with the Prime Video row above the dock and the weather line under the clock](docs/fork/home-shelf-weather.png)
 
